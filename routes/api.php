@@ -13,9 +13,6 @@ use Illuminate\Support\Facades\Route;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
-
-
-    $router->post('taskStart', 'camundaController@TaskStart');
-    $router->post('taskList', 'camundaController@TaskList');
-    $router->post('taskComplate', 'camundaController@TaskComplate');
+    
+    $router->post('task', 'camundaController@Task');
 

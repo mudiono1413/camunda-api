@@ -21,72 +21,91 @@ class camundaController extends Controller
         $this->client = new \GuzzleHttp\Client();
     }
 
-    public function TaskStart(Request $req){
-        $client = $this->client;
-        $url    = env('BASE_URL')."/process-definition/key/$req->prosesName/start";
-    
-        $body = json_encode(
-            [
-                'variables' => [
-                  'approved'=> [
-                      'value' => 'true',
-                      'type'  => 'Boolean']
-                ]
-            ]
-              
-        );
-        $headers  = ['Content-Type' => 'application/json'];
+    public function Task(Request $req){
+        $status     = true;
+        $prosesName = 'approveInvoice';
+        if ($req->total == null) {
+            return response()->json([
+                'status'  => true,
+                'message' => 'Jumlah tidak boleh kosong',
+            ], 400);
+        }
+
+        if ($req->total > 300000) {
+            $status = false;
+        } else {
+            $status = true;
+        }
+
+        
+        $client      = $this->client;
+        $url         = env('BASE_URL')."/process-definition/key/$prosesName/start";
+        $urlTaskList = env('BASE_URL')."/task";
+
+        // header
+        $headers = ['Content-Type' => 'application/json'];
+
+        // request rest api start psoses 
         $response = $client->request('POST', $url, [
-            'body'    => $body,
             'headers' => $headers
-        ]); 
-       
+        ]);
+
         $response = json_decode( $response->getBody()->getContents());
+        // proses id didapat dari respon task start
         $ProsesId = $response->id;
-        // $req->session()->put('ProsesId',$ProsesId);
-        session(['prosesId' => $ProsesId]);
-        // $req->session()->put('nama','Diki Alfarabi Hadi');
-        return response()->json(['message' =>session()->all()], 200);
-    }
-    
-    public function TaskList(Request $req){
-        $client = $this->client;
-        $url    = env('BASE_URL')."/task";
-        $body   = [
-                'processInstanceId' => session()->get('prosesId')
-            ];
-        $headers  = ['Content-Type' => 'application/json'];
-        $response = $client->request('GET', $url, [
-            'query' => $body
+
+        // request body task list
+        $bodyTaskList   = [
+            'processInstanceId' => $ProsesId
+        ];
+
+        // request rest api task list berdasarkan proses id yang sedang berjalan
+        $responseTasklist = $client->request('GET', $urlTaskList, [
+            'query' => $bodyTaskList
             // 'headers' => $headers
         ]); 
-       
-        $response = json_decode( $response->getBody()->getContents());
-        return response()->json(['message' => session()->all()], 200);
-    }
 
+        // respon body task list yang sedang berjalan
+        $responseTasklist = json_decode( $responseTasklist->getBody()->getContents());
+        // mengambil task id dari respon bosy task list 
+        $TaskId = $responseTasklist[0]->id;
 
-    public function TaskComplate(Request $req){
-        $client = $this->client;
-        $url    = env('BASE_URL')."/task/$req->idTask/complete";
+        // set url untuk menyelesaikan task berdasarkan id task
+        $urltaskComplate = env('BASE_URL')."/task/$TaskId/complete";
+
+        // request body variable 
+        //  nama variable , value dan type ditentukan sesuai kebutuhan
     
-        $body = json_encode(
+        $bodyTaskComplate = json_encode(
             [
                 'variables' => [
                   'approved'=> [
-                      'value' => 'true',
+                      'value' => $status,
                       'type'  => 'Boolean']
                 ]
             ]
-              
         );
-        $headers  = ['Content-Type' => 'application/json'];
-        $response = $client->request('POST', $url, [
-            'body'    => $body,
+
+        // request rest api complate task
+        $responseTaskComplate = $client->request('POST', $urltaskComplate, [
+            'body'    => $bodyTaskComplate,
             'headers' => $headers
         ]); 
-       
-        $response = json_decode( $response->getBody()->getContents());
-        return response()->json(['message' => $response], 200);
+        
+        //    respon body task complate
+        // secara default respon body dari task complate no content ( null )
+        $responseTaskComplate = json_decode( $responseTaskComplate->getBody()->getContents());
+
+        // custom respon body
+        $responses = [
+            'StatusCode'  => 200,
+            'message'     => 'success',
+            'status Data' => $status,
+            'Data'        => 'jumlah yang di input '. $req->total,
+        ];   
+
+        return response()->json([
+            'result' => $responses
+        ], 200);
     }
 }
