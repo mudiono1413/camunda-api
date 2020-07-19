@@ -13,6 +13,16 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Route::get('/', function () {
+//     return view('welcome');
+// });
+
+Route::get('/', 'HomeController@index')->name('home');
+Route::post('/start/service', "flowDataController@startService")->name('start.service');
+Route::get('/form', "flowDataController@Index")->name('form.index');
+Route::get('/approve', "approveController@Index")->name('approve.index');
+Route::post('/approve/create', "approveController@approve")->name('approve.create');
+
+
+// route get data riwayat
+Route::get('/riwayat', "RiwayatController@Index")->name('Riwayat');

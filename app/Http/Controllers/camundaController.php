@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class camundaController extends Controller
 {
@@ -22,90 +23,216 @@ class camundaController extends Controller
     }
 
     public function Task(Request $req){
-        $status     = true;
-        $prosesName = 'approveInvoice';
-        if ($req->total == null) {
+        // deklarasi proses name yang akan di jalankan
+        $prosesName = 'flow';
+         // deklarasi guzzle http client
+         $client = $this->client;
+
+        $validator = Validator::make($req->all(), [
+            'name'    => 'required|string',
+            'nik'     => 'required|string',
+            'sex'     => 'required|string',
+            'tgllhr'  => 'required|string',
+            'tmplhr'  => 'required|string',
+            'namaibu' => 'required|string',
+        ]);
+       
+
+        // validasi input parameter 
+        if ($validator->fails()) {
+            $responses = [
+                'statusCode' => 400,
+                'message'    => 'Paramater total tidak boleh kosong',
+            ];
             return response()->json([
-                'status'  => true,
-                'message' => 'Jumlah tidak boleh kosong',
+               'result' => $responses
             ], 400);
         }
 
-        if ($req->total > 300000) {
-            $status = false;
-        } else {
-            $status = true;
-        }
-
-        
-        $client      = $this->client;
-        $url         = env('BASE_URL')."/process-definition/key/$prosesName/start";
-        $urlTaskList = env('BASE_URL')."/task";
+       
+        // deklarasi url proses start dan tasklist
+        $url = "http://localhost:8080/engine-rest/process-definition/key/flow/start";
 
         // header
         $headers = ['Content-Type' => 'application/json'];
 
-        // request rest api start psoses 
-        $response = $client->request('POST', $url, [
-            'headers' => $headers
-        ]);
-
-        $response = json_decode( $response->getBody()->getContents());
-        // proses id didapat dari respon task start
-        $ProsesId = $response->id;
-
-        // request body task list
-        $bodyTaskList   = [
-            'processInstanceId' => $ProsesId
-        ];
-
-        // request rest api task list berdasarkan proses id yang sedang berjalan
-        $responseTasklist = $client->request('GET', $urlTaskList, [
-            'query' => $bodyTaskList
-            // 'headers' => $headers
-        ]); 
-
-        // respon body task list yang sedang berjalan
-        $responseTasklist = json_decode( $responseTasklist->getBody()->getContents());
-        // mengambil task id dari respon bosy task list 
-        $TaskId = $responseTasklist[0]->id;
-
-        // set url untuk menyelesaikan task berdasarkan id task
-        $urltaskComplate = env('BASE_URL')."/task/$TaskId/complete";
-
-        // request body variable 
-        //  nama variable , value dan type ditentukan sesuai kebutuhan
-    
         $bodyTaskComplate = json_encode(
             [
                 'variables' => [
-                  'approved'=> [
-                      'value' => $status,
-                      'type'  => 'Boolean']
+                  'name'=> [
+                      'value' => $req->name,
+                      'type'  => 'String'],
+                  'nik'=> [
+                      'value' => $req->nik,
+                      'type'  => 'String'],
+                  'tmplhr'=> [
+                      'value' => $req->tmplhr,
+                      'type'  => 'String'],
+                  'tgllhr'=> [
+                      'value' => $req->tgllhr],
+                  'sex'=> [
+                      'value' => $req->sex,
+                      'type'  => 'String'],
+                  'namaibu'=> [
+                      'value' => $req->namaibu,
+                      'type'  => 'String'],
                 ]
             ]
-        );
+        );  
 
-        // request rest api complate task
-        $responseTaskComplate = $client->request('POST', $urltaskComplate, [
+        // dd($bodyTaskComplate);
+
+        // request rest api start psoses 
+        $response = $client->request('POST', $url, [
+            'headers' => $headers,
             'body'    => $bodyTaskComplate,
-            'headers' => $headers
-        ]); 
-        
-        //    respon body task complate
-        // secara default respon body dari task complate no content ( null )
-        $responseTaskComplate = json_decode( $responseTaskComplate->getBody()->getContents());
+        ]);
+        // response body start proses
+        $response = json_decode( $response->getBody()->getContents());
 
         // custom respon body
         $responses = [
             'StatusCode'  => 200,
             'message'     => 'success',
-            'status Data' => $status,
-            'Data'        => 'jumlah yang di input '. $req->total,
+            'status Data' => $response,
         ];   
 
+        // menampilkan content respon body
         return response()->json([
             'result' => $responses
         ], 200);
+    }
+
+
+    public function apiRO(Request $req){
+        $client = $this->client;
+        $flag   = 0;
+        $urlRo  = "http://repo.fifgroup.co.id:10702/commons/api/v2/customers";
+
+        $urlToken = "http://testauthtoken.fifgroup.co.id:8380/auth/realms/fifgroup/protocol/openid-connect/token";
+        
+       
+        $reqClient = $client->request('POST',
+        $urlToken,[
+            // 'headers'     => $headers,
+            'form_params' => [
+                'grant_type'    => 'password',
+                'client_id'     => 'fifgroup-token',
+                'client_secret' => '261f1b80-7a18-438e-b9fa-2f9575c97e0b',
+                'username'      => 'repo',
+                'password'      => 'repo123'
+            ]
+        ]);
+
+        $reqClient = json_decode($reqClient->getBody()->getContents());
+        $token = "Bearer ".$reqClient->access_token;
+        $body   = json_encode(
+            [
+                'pob'            => $req->pob,
+                'dob'            => $req->dob,
+                'sex'            => $req->sex,
+                'motherName'     => $req->motherName,
+                'name'           => $req->name,
+                'identityNo'     => $req->identityNo,
+                'requestBy'      => $req->requestBy,
+                'requestChannel' => $req->requestChannel,
+                'requestId'      => $req->requestId
+            ]
+        );
+        $headers = [
+            'Content-Type'  => 'application/json',
+            'Authorization' => $token
+                    ];
+                    
+        $reqClient = $client->request(
+            'POST', $urlRo, [
+                'body'    => $body,
+                'headers' => $headers
+            ]
+            );
+            $reqClient = json_decode($reqClient->getBody()->getContents());
+            if (count($reqClient->data) != 0) {
+              $flag = 1;
+            } else {
+               $flag = 0;
+            }
+            
+            return response()->json($flag, 200);
+    }
+
+    public function apiMatchingData(Request $req){
+        $client          = $this->client;
+        $statausData     = "Data sesuai";
+        $codeStatusData  = 0;
+        $urlMatchingData = "http://10.17.36.10:2020/data-compare/compareData";
+        
+        $body            = json_encode(
+            [
+                'nik'                    => $req->nik,
+                'nama'                   => $req->nama,
+                'tmp_lhr'                => $req->tmp_lhr,
+                'tgl_lhr'                => $req->tgl_lhr,
+                'jns_klm'                => $req->jns_klm,
+                'nama_ibu'               => $req->nama_ibu,
+                'flagRo'                 => $req->flagRo,
+                'fif_branch_code'        => "00001",
+                'fif_app_code'           => "FIFAPP03",
+                'fif_app_ip_address'     => "10.172.176.7",
+                'fif_app_admin_user_id'  => "FIFAWDA",
+                'fif_app_admin_user_pwd' => "fifawda@123",
+                'fif_app_user_id_login'  => "9551",
+                'fif_app_kios_pos_code'  => "00001",
+                'fif_app_no_permohonan'  => "123"
+            ]
+            );
+            $headers = [
+                'Content-Type' => 'application/json'
+                        ];
+            $reqClient = $client->request(
+                'POST', $urlMatchingData, [
+                    'body'    => $body,
+                    'headers' => $headers
+                ]
+            );
+
+            $reqClient   = json_decode($reqClient->getBody()->getContents());
+            $statausData = $reqClient->statusData;
+
+            if ($statausData == "Data Terindikasi Fraud") {
+                $codeStatusData = 1 ;
+            } else {
+                $codeStatusData = 0 ;
+            }
+            
+            return response()->json($codeStatusData, 200);
+            
+    }
+
+    public function getToken(Request $req){
+        $headers  = [
+            'Content-Type' => 'application/x-www-form-urlencoded'
+                    ];
+        
+        $client   = $this->client;
+        $urlToken = "http://testauthtoken.fifgroup.co.id:8380/auth/realms/fifgroup/protocol/openid-connect/token";
+        
+       
+        $reqClient = $client->request('POST',
+        $urlToken,[
+            // 'headers'     => $headers,
+            'form_params' => [
+                'grant_type'    => 'password',
+                'client_id'     => 'fifgroup-token',
+                'client_secret' => '261f1b80-7a18-438e-b9fa-2f9575c97e0b',
+                'username'      => 'repo',
+                'password'      => 'repo123'
+            ]
+        ]);
+
+        $reqClient = json_decode($reqClient->getBody()->getContents());
+        $token = "Bearer ".$reqClient->access_token;
+        return response()->json($token, 200);
+
+
     }
 }

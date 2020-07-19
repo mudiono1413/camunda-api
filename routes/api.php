@@ -15,4 +15,7 @@ use Illuminate\Support\Facades\Route;
 */
     
     $router->post('task', 'camundaController@Task');
+    $router->post('custumers/ro', 'camundaController@apiRO');
+    $router->post('matching/data', 'camundaController@apiMatchingData');
+    $router->post('getToken', 'camundaController@getToken');
 
